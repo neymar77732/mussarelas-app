@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16803b">
+
+<title>Mussarelas App</title>
+
+<style>
+body{
+font-family:-apple-system,BlinkMacSystemFont,Arial;
+margin:0;
+background:#f5f7f5;
+color:#18231b
+}
+
+header{
+background:#16803b;
+color:#fff;
+padding:28px 18px 18px
+}
+
+h1{
+margin:0;
+font-size:28px
+}
+
+.sub{
+opacity:.85
+}
+
+.wrap{
+padding:14px;
+max-width:700px;
+margin:auto
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px
+}
+
+.card,form{
+background:#fff;
+border-radius:18px;
+padding:16px;
+box-shadow:0 2px 10px #0001
+}
+
+.num{
+font-size:22px;
+font-weight:800
+}
+
+label{
+display:block;
+margin-top:10px;
+font-size:13px
+}
+
+input,select,button{
+width:100%;
+box-sizing:border-box;
+padding:12px;
+border-radius:12px;
+border:1px solid #d6ddd7;
+font-size:16px
+}
+
+button{
+background:#16803b;
+color:#fff;
+border:0;
+font-weight:700;
+margin-top:16px
+}
+
+.sale{
+margin-top:12px;
+padding:12px;
+border-radius:14px;
+background:#fff;
+border-left:5px solid #16803b
+}
+
+.muted{
+color:#68736b;
+font-size:13px
+}
+
+.tabs{
+display:flex;
+gap:8px;
+overflow:auto;
+padding:10px 0
+}
+
+.tab{
+width:auto;
+white-space:nowrap;
+background:#e7f1e9;
+color:#16803b;
+margin:0
+}
+
+.paid{
+border-left-color:#16803b
+}
+
+.overdue{
+border-left-color:#b42318
+}
+
+.hide{
+display:none
+}
+
+.small{
+font-size:13px;
+background:#16803b;
+padding:8px;
+width:auto;
+margin:6px 4px 0 0
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>🧀 Mussarelas App</h1>
+<div class="sub">Controle pessoal de vendas</div>
+</header>
+
+<main class="wrap">
+
+<div class="tabs">
+<button class="tab" onclick="show('home')">Início</button>
+<button class="tab" onclick="show('new')">Nova venda</button>
+<button class="tab" onclick="show('clients')">Clientes</button>
+<button class="tab" onclick="show('credit')">Prazos</button>
+<button class="tab" onclick="show('profit')">Lucros</button>
+</div>
+
+<section id="home">
+
+<div class="grid">
+
+<div class="card">
+Vendido
+<div class="num" id="kg">0 kg</div>
+</div>
+
+<div class="card">
+Faturado
+<div class="num" id="rev">R$ 0,00</div>
+</div>
+
+<div class="card">
+Lucro
+<div class="num" id="prof">R$ 0,00</div>
+</div>
+
+<div class="card">
+A receber
+<div class="num" id="pending">R$ 0,00</div>
+</div>
+
+</div>
+
+<h3>Vendas recentes</h3>
+<div id="recent"></div>
+
+</section>
+
+<section id="new" class="hide">
+
+<form onsubmit="addSale(event)">
+
+<h2>Nova venda</h2>
+
+<label>Cliente</label>
+<input id="name" required placeholder="Nome do cliente">
+
+<label>Quantidade (kg)</label>
+<input id="kilos" required type="number" step="0.01" value="1">
+
+<label>Preço por kg</label>
+<input id="price" required type="number" step="0.01" value="36">
+
+<label>Pagamento</label>
+
+<select id="payment"
+onchange="document.getElementById('dueWrap').classList.toggle('hide',this.value==='avista')">
+
+<option value="avista">À vista</option>
+<option value="prazo">A prazo</option>
+
+</select>
+
+<div id="dueWrap" class="hide">
+
+<label>Data de vencimento</label>
+<input id="due" type="date">
+
+</div>
+
+<button>Salvar venda</button>
+
+</form>
+
+</section>
+
+<section id="clients" class="hide">
+
+<h2>Clientes</h2>
+<div id="clientList"></div>
+
+</section>
+
+<section id="credit" class="hide">
+
+<h2>Vendas a prazo</h2>
+<div id="creditList"></div>
+
+</section>
+
+<section id="profit" class="hide">
+
+<div class="card">
+
+<h2>Resumo de lucro</h2>
+
+<p>Preço de venda: <b>R$ 36,00/kg</b></p>
+
+<p>Preço de custo: <b>R$ 32,00/kg</b></p>
+
+<p>Lucro por kg: <b>R$ 4,00</b></p>
+
+<hr>
+
+<p>Faturamento: <b id="pRev"></b></p>
+
+<p>Custo: <b id="pCost"></b></p>
+
+<p>Lucro total: <b id="pProfit"></b></p>
+
+</div>
+
+</section>
+
+</main>
+
+<script>
+
+let sales =
+JSON.parse(localStorage.getItem('mussSales') || '[]');
+
+const money = n =>
+n.toLocaleString('pt-BR',{
+style:'currency',
+currency:'BRL'
+});
+
+function show(id){
+
+document
+.querySelectorAll('main section')
+.forEach(s => s.classList.add('hide'));
+
+document
+.getElementById(id)
+.classList.remove('hide');
+
+render();
+
+}
+
+function addSale(e){
+
+e.preventDefault();
+
+let s = {
+
+id:Date.now(),
+
+name:name.value,
+
+kilos:+kilos.value,
+
+price:+price.value,
+
+payment:payment.value,
+
+due:due.value,
+
+paid:payment.value === 'avista',
+
+date:new Date().toLocaleDateString('pt-BR')
+
+};
+
+sales.push(s);
+
+localStorage.setItem(
+'mussSales',
+JSON.stringify(sales)
+);
+
+e.target.reset();
+
+price.value=36;
+
+kilos.value=1;
+
+show('home');
+
+}
+
+function markPaid(id){
+
+sales=sales.map(s =>
+s.id===id
+? {...s,paid:true}
+: s
+);
+
+localStorage.setItem(
+'mussSales',
+JSON.stringify(sales)
+);
+
+render();
+
+}
+
+function render(){
+
+let totalKg =
+sales.reduce((a,s)=>a+s.kilos,0);
+
+let revenue =
+sales.reduce((a,s)=>a+s.kilos*s.price,0);
+
+let cost =
+sales.reduce((a,s)=>a+s.kilos*32,0);
+
+let profit =
+revenue-cost;
+
+let pending =
+sales
+.filter(s=>!s.paid)
+.reduce((a,s)=>a+s.kilos*s.price,0);
+
+document.getElementById('kg').textContent =
+totalKg.toFixed(2)+' kg';
+
+document.getElementById('rev').textContent =
+money(revenue);
+
+document.getElementById('prof').textContent =
+money(profit);
+
+document.getElementById('pending').textContent =
+money(pending);
+
+document.getElementById('recent').innerHTML =
+sales.slice().reverse().slice(0,8)
+.map(s=>`
+
+<div class="sale">
+
+<b>${s.name}</b><br>
+
+${s.kilos} kg •
+${money(s.kilos*s.price)}
+
+<div class="muted">
+
+${s.date}
+
+${s.payment==='prazo'
+?'• Venc.: '+s.due
+:''}
+
+</div>
+
+</div>
+
+`).join('') ||
+
+'<p class="muted">Nenhuma venda cadastrada.</p>';
+
+let clients={};
+
+sales.forEach(s=>{
+
+clients[s.name] =
+(clients[s.name]||0)
++
+s.kilos*s.price;
+
+});
+
+document.getElementById('clientList').innerHTML =
+Object.entries(clients)
+.map(([n,v])=>`
+
+<div class="sale">
+
+<b>${n}</b><br>
+
+<span class="muted">
+
+Total comprado:
+${money(v)}
+
+</span>
+
+</div>
+
+`).join('') ||
+
+'<p class="muted">Nenhum cliente.</p>';
+
+document.getElementById('creditList').innerHTML =
+sales
+.filter(s=>s.payment==='prazo')
+.map(s=>`
+
+<div class="sale">
+
+<b>${s.name}</b><br>
+
+${s.kilos} kg •
+${money(s.kilos*s.price)}
+
+<div class="muted">
+
+Vencimento:
+${s.due || 'Não informado'}
+
+• ${s.paid ? 'Pago' : 'Pendente'}
+
+</div>
+
+${!s.paid ?
+
+`<button class="small"
+onclick="markPaid(${s.id})">
+
+Marcar como pago
+
+</button>`
+
+:''}
+
+</div>
+
+`).join('') ||
+
+'<p class="muted">Nenhuma venda a prazo.</p>';
+
+document.getElementById('pRev').textContent =
+money(revenue);
+
+document.getElementById('pCost').textContent =
+money(cost);
+
+document.getElementById('pProfit').textContent =
+money(profit);
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>
